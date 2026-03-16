@@ -1,0 +1,41 @@
+# Smart Energy Meter Backend
+
+Production-ready FastAPI backend for IoT smart energy metering with PostgreSQL, Redis, Celery, and Razorpay.
+
+## Quick Start (.venv)
+
+1. Create and activate virtual environment.
+2. Install dependencies.
+3. Copy `.env.example` to `.env` and edit values.
+4. Start infrastructure (PostgreSQL + Redis) using Docker Compose.
+5. Run API and Celery worker.
+
+### Commands (PowerShell)
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements-dev.txt
+Copy-Item .env.example .env
+docker compose up -d postgres redis
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+In a second terminal:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+celery -A app.workers.celery_app.celery_app worker -l info
+```
+
+## API docs
+
+- Swagger: `http://localhost:8000/docs`
+- OpenAPI: `http://localhost:8000/openapi.json`
+
+## Test
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+pytest -q
+```
