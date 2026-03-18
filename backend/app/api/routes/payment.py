@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_current_user, get_db_session
 from app.models.bill import Bill
 from app.models.user import User
-from app.schemas.billing import PaymentCreateRequest, RazorpayOrderResponse, WebhookResponse
+from app.schemas.billing import PaymentCreateRequest, PaymentFinalizeRequest, RazorpayOrderResponse, WebhookResponse
 from app.services.payment_service import PaymentService
 
 router = APIRouter(prefix="/payment", tags=["payment"])
@@ -25,6 +25,17 @@ def create_payment_order(
 
     data = payment_service.create_order(db, bill)
     return RazorpayOrderResponse(**data)
+
+
+@router.post("/finalize")
+def finalize_payment(
+    payload: PaymentFinalizeRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db_session),
+) -> dict:
+    """Synchronous payment finalization - use this instead of webhook for prototype"""
+    result = payment_service.finalize_payment(db, payload.order_id, payload.payment_id)
+    return result
 
 
 @router.post("/webhook", response_model=WebhookResponse)

@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 
 class BillResponse(BaseModel):
-    id: UUID
+    bill_id: UUID
     month: date
     units: float
     amount: float
@@ -15,6 +15,11 @@ class BillResponse(BaseModel):
 
 class PaymentCreateRequest(BaseModel):
     bill_id: UUID
+
+
+class PaymentFinalizeRequest(BaseModel):
+    order_id: str
+    payment_id: str
 
 
 class RazorpayOrderResponse(BaseModel):

@@ -9,3 +9,5 @@ __pycache__/
 htmlcov/
 .venv/
 .env
+*.env.local
+alembic/versions/*.pyc

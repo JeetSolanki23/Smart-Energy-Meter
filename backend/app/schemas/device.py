@@ -15,6 +15,16 @@ class PairInitResponse(BaseModel):
     expires_in: int
 
 
+class DeviceActivateRequest(BaseModel):
+    device_uid: str = Field(min_length=6, max_length=64)
+
+
+class DeviceActivateResponse(BaseModel):
+    device_id: str
+    device_secret: str
+    status: DeviceStatus
+
+
 class AdminRegisterDeviceRequest(BaseModel):
     pair_code: str = Field(min_length=6, max_length=6)
     location: str = Field(min_length=1, max_length=255)
@@ -30,16 +40,6 @@ class AdminRelayRequest(BaseModel):
     relay_state: str
 
 
-class DeviceActivateRequest(BaseModel):
-    device_uid: str
-
-
-class DeviceActivateResponse(BaseModel):
-    device_id: str
-    device_secret: str
-    status: DeviceStatus
-
-
 class DeviceDataRequest(BaseModel):
     device_id: str
     voltage: float
@@ -52,3 +52,4 @@ class DeviceDataRequest(BaseModel):
 
 class DeviceCommandResponse(BaseModel):
     relay: str
+    polling_interval_seconds: int

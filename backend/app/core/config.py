@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     RAZORPAY_WEBHOOK_SECRET: str = ""
 
     PAIR_CODE_TTL_SECONDS: int = 600
-    DEVICE_DATA_INTERVAL_SECONDS: int = 60
+    DEVICE_DATA_INTERVAL_SECONDS: int = 30
     PRICE_PER_UNIT: float = 7.0
 
     @property

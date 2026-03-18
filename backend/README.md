@@ -33,6 +33,11 @@ celery -A app.workers.celery_app.celery_app worker -l info
 - Swagger: `http://localhost:8000/docs`
 - OpenAPI: `http://localhost:8000/openapi.json`
 
+## Project Documentation
+
+- `DOCUMENTATION.md` for architecture, setup, security, billing, and operations.
+- `ENDPOINTS_WORKFLOW.md` for endpoint-by-endpoint reference and workflows.
+
 ## Test
 
 ```powershell

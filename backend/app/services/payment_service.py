@@ -48,6 +48,25 @@ class PaymentService:
             "key_id": settings.RAZORPAY_KEY_ID,
         }
 
+    def finalize_payment(self, db: Session, razorpay_order_id: str, razorpay_payment_id: str) -> dict:
+        """Synchronously finalize payment (for prototype without webhook)"""
+        payment = db.query(Payment).filter(Payment.razorpay_order_id == razorpay_order_id).first()
+        if not payment:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Payment record not found")
+
+        payment.razorpay_payment_id = razorpay_payment_id
+        payment.status = PaymentStatus.SUCCESS
+        payment.paid_at = datetime.now(UTC)
+
+        bill = db.query(Bill).filter(Bill.id == payment.bill_id).first()
+        if bill:
+            bill.status = BillStatus.PAID
+        else:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bill not found")
+
+        db.commit()
+        return {"status": "success", "bill_status": "PAID"}
+
     def verify_webhook_signature(self, body: bytes, signature: str) -> bool:
         expected = hmac.new(
             settings.RAZORPAY_WEBHOOK_SECRET.encode("utf-8"),

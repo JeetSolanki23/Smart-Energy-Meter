@@ -10,6 +10,7 @@ from app.models.daily_usage import DailyUsage
 from app.models.device import Device
 from app.models.energy_reading import EnergyReading
 from app.models.enums import BillStatus
+from app.services.pricing_service import get_current_price
 
 settings = get_settings()
 
@@ -57,6 +58,7 @@ def generate_monthly_bills(db: Session, month_start: date | None = None) -> int:
     )
 
     count = 0
+    current_price_per_unit = get_current_price(db)
     for user_id, units in rows:
         existing = db.query(Bill).filter(Bill.user_id == user_id, Bill.month == first_day).first()
         if existing:
@@ -65,7 +67,7 @@ def generate_monthly_bills(db: Session, month_start: date | None = None) -> int:
             user_id=UUID(str(user_id)),
             month=first_day,
             units=float(units or 0.0),
-            amount=float(units or 0.0) * settings.PRICE_PER_UNIT,
+            amount=float(units or 0.0) * current_price_per_unit,
             due_date=first_day + timedelta(days=15),
             status=BillStatus.UNPAID,
         )

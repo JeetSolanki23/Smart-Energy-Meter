@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.models.device import Device
 from app.models.energy_reading import EnergyReading
+from app.models.enums import DeviceStatus
 from app.models.tamper_log import TamperLog
 from app.services.redis_service import redis_client
 
@@ -39,6 +40,9 @@ def consume_pair_code(pair_code: str) -> str:
 
 
 def store_reading(db: Session, device: Device, payload: dict) -> None:
+    # Use server-side receipt time for connectivity/offline calculations.
+    received_at = datetime.now(UTC)
+
     reading = EnergyReading(
         device_id=device.id,
         voltage=payload["voltage"],
@@ -46,16 +50,19 @@ def store_reading(db: Session, device: Device, payload: dict) -> None:
         power=payload["power"],
         energy=payload["energy"],
         tamper=payload["tamper"],
-        timestamp=payload["timestamp"],
+        timestamp=received_at,
     )
     db.add(reading)
 
     if payload["tamper"]:
         device.tampered = True
+        device.relay_state = False
+        device.pending_relay_command = False
+        device.status = DeviceStatus.DEACTIVATED
         tamper_log = TamperLog(
             device_id=device.id,
             timestamp=datetime.now(UTC),
-            description="Tamper detected by device firmware",
+            description="Tamper detected by device firmware. Device deactivated and relay turned OFF.",
         )
         db.add(tamper_log)
 
