@@ -22,7 +22,7 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <ThemeProvider defaultTheme="light" storageKey="smartmeter-theme">
+    <ThemeProvider defaultTheme="system" storageKey="smartmeter-theme">
       <TooltipProvider>
         <Toaster />
         <Sonner />

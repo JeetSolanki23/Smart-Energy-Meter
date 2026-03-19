@@ -1,5 +1,59 @@
 const API_BASE = import.meta.env.VITE_API_BASE || "/api/v1";
 
+function toReadableMessage(value: unknown): string | null {
+  if (typeof value === "string") {
+    const text = value.trim();
+    return text.length ? text : null;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const parsed = toReadableMessage(item);
+      if (parsed) return parsed;
+    }
+    return null;
+  }
+
+  if (value && typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+
+    // FastAPI validation errors: [{ msg, loc, type }]
+    if (typeof obj.msg === "string" && obj.msg.trim()) {
+      return obj.msg;
+    }
+
+    const preferredKeys = ["message", "detail", "error", "reason"];
+    for (const key of preferredKeys) {
+      if (key in obj) {
+        const parsed = toReadableMessage(obj[key]);
+        if (parsed) return parsed;
+      }
+    }
+  }
+
+  return null;
+}
+
+function getApiErrorMessage(endpoint: string, statusCode: number, payload: unknown): string {
+  const fromPayload = toReadableMessage(payload);
+  if (fromPayload) return fromPayload;
+
+  const isAuthRoute = endpoint.startsWith("/auth");
+  if (isAuthRoute && statusCode === 404) {
+    return "Login service not found. Please check backend route or use the correct login page.";
+  }
+
+  if (isAuthRoute && statusCode === 401) {
+    return "Invalid email or password.";
+  }
+
+  if (statusCode === 422) {
+    return "Please check the form fields and try again.";
+  }
+
+  return `HTTP ${statusCode}`;
+}
+
 export function getToken(): string | null {
   return localStorage.getItem("auth_token");
 }
@@ -45,8 +99,10 @@ export async function api<T = unknown>(
   }
 
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ message: "Request failed" }));
-    throw new Error(error.message || error.detail || `HTTP ${res.status}`);
+    const errorBody = await res
+      .json()
+      .catch(async () => ({ message: (await res.text().catch(() => "")).trim() || null }));
+    throw new Error(getApiErrorMessage(endpoint, res.status, errorBody));
   }
 
   return res.json();

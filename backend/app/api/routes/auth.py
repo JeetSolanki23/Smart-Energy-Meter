@@ -43,7 +43,16 @@ def register_admin(payload: RegisterRequest, db: Session = Depends(get_db_sessio
 @router.post("/login", response_model=TokenResponse)
 def login_user(payload: LoginRequest, db: Session = Depends(get_db_session)) -> TokenResponse:
     user = db.query(User).filter(User.email == payload.email).first()
-    if not user or not verify_password(payload.password, user.password_hash):
+    if not user:
+        admin = db.query(Admin).filter(Admin.email == payload.email).first()
+        if admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This is an admin account. Please use Admin Login.",
+            )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+    if not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     token = create_access_token(str(user.id), role="user")
@@ -53,7 +62,16 @@ def login_user(payload: LoginRequest, db: Session = Depends(get_db_session)) -> 
 @router.post("/admin/login", response_model=TokenResponse)
 def login_admin(payload: LoginRequest, db: Session = Depends(get_db_session)) -> TokenResponse:
     admin = db.query(Admin).filter(Admin.email == payload.email).first()
-    if not admin or not verify_password(payload.password, admin.password_hash):
+    if not admin:
+        user = db.query(User).filter(User.email == payload.email).first()
+        if user:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This is a user account. Please use User Login.",
+            )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+    if not verify_password(payload.password, admin.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     token = create_access_token(str(admin.id), role="admin")
