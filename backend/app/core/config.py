@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     API_V1_PREFIX: str = "/api/v1"
     DEBUG: bool = False
+    CORS_ALLOWED_ORIGINS: str = ""
 
     SECRET_KEY: str = "change-this-secret-key"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 120
@@ -32,6 +33,12 @@ class Settings(BaseSettings):
     PAIR_CODE_TTL_SECONDS: int = 600
     DEVICE_DATA_INTERVAL_SECONDS: int = 30
     PRICE_PER_UNIT: float = 7.0
+
+    @property
+    def cors_allowed_origins(self) -> list[str]:
+        if not self.CORS_ALLOWED_ORIGINS.strip():
+            return []
+        return [origin.strip() for origin in self.CORS_ALLOWED_ORIGINS.split(",") if origin.strip()]
 
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> str:  # noqa: N802

@@ -1,6 +1,7 @@
 ﻿from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import ORJSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 
@@ -27,6 +28,15 @@ app = FastAPI(
     default_response_class=ORJSONResponse,
     lifespan=lifespan,
 )
+
+if settings.cors_allowed_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_allowed_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 Instrumentator().instrument(app).expose(app)
 app.include_router(api_router, prefix=settings.API_V1_PREFIX)
