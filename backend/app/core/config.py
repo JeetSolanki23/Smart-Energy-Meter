@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     PAIR_CODE_TTL_SECONDS: int = 600
     DEVICE_DATA_INTERVAL_SECONDS: int = 30
     PRICE_PER_UNIT: float = 7.0
+    MIN_PAYMENT_AMOUNT: float = 1.0
 
     @property
     def cors_allowed_origins(self) -> list[str]:

@@ -2,8 +2,8 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/components/ThemeProvider";
 import {
-  Zap, LayoutDashboard, BarChart3, Receipt, Moon, Sun, LogOut, Menu, X,
-  Cpu, PlusCircle, Shield,
+  Zap, LayoutDashboard, BarChart3, Receipt, Moon, Sun, LogOut, Menu,
+  Cpu, PlusCircle, Shield, Workflow, Users, LineChart,
 } from "lucide-react";
 import { clearAuth, getRole } from "@/lib/api";
 import { useState } from "react";
@@ -27,8 +27,12 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
 
   const adminLinks = [
     { to: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { to: "/admin/analytics/charts", label: "Analytics Charts", icon: LineChart },
+    { to: "/admin/analytics/members", label: "Member Analytics", icon: Users },
+    { to: "/admin/analytics/devices", label: "Device Analytics", icon: BarChart3 },
     { to: "/admin/devices", label: "Devices", icon: Cpu },
     { to: "/admin/device/register", label: "Register Device", icon: PlusCircle },
+    { to: "/admin/jobs", label: "Jobs", icon: Workflow },
   ];
 
   const links = role === "admin" ? adminLinks : userLinks;

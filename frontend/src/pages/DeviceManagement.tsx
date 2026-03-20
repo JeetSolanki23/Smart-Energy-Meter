@@ -17,33 +17,21 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Cpu, Loader2, Power, PowerOff, RotateCcw, Trash2, ToggleLeft, ToggleRight } from "lucide-react";
 import { api } from "@/lib/api";
 import DashboardLayout from "@/components/DashboardLayout";
+import { AdminDeviceSummary } from "@/types/admin";
 import { toast } from "sonner";
 
-interface Device {
-  device_id: string;
-  location: string;
-  status: string;
-  relay_state: string;
-  tampered: boolean;
-  health_status: "GOOD" | "OFFLINE" | "TAMPERED";
-}
-
 const DeviceManagement = () => {
-  const [devices, setDevices] = useState<Device[]>([]);
+  const [devices, setDevices] = useState<AdminDeviceSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const fetchDevices = () => {
     setLoading(true);
-    api<Device[]>("/admin/device/list")
+    api<AdminDeviceSummary[]>("/admin/device/list")
       .then(setDevices)
       .catch(() => {
-        setDevices([
-          { device_id: "DEV_000001", location: "Room 201", status: "ACTIVE", relay_state: "ON", tampered: false },
-          { device_id: "DEV_000002", location: "Room 305", status: "ACTIVE", relay_state: "OFF", tampered: false },
-          { device_id: "DEV_000003", location: "Room 102", status: "DEACTIVATED", relay_state: "OFF", tampered: false },
-          { device_id: "DEV_000004", location: "Room 410", status: "ACTIVE", relay_state: "ON", tampered: true },
-        ]);
+        setDevices([]);
+        toast.error("Failed to load device list");
       })
       .finally(() => setLoading(false));
   };
@@ -90,7 +78,10 @@ const DeviceManagement = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Device ID</TableHead>
+                    <TableHead>Owner</TableHead>
                     <TableHead>Location</TableHead>
+                    <TableHead>This Month (kWh)</TableHead>
+                    <TableHead>Lifetime (kWh)</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Relay</TableHead>
                     <TableHead>Health</TableHead>
@@ -101,7 +92,10 @@ const DeviceManagement = () => {
                   {devices.map((d) => (
                     <TableRow key={d.device_id}>
                       <TableCell className="font-mono text-sm">{d.device_id}</TableCell>
+                      <TableCell>{d.owner_email || "-"}</TableCell>
                       <TableCell>{d.location}</TableCell>
+                      <TableCell>{d.current_month_units.toFixed(4)}</TableCell>
+                      <TableCell>{d.lifetime_units.toFixed(4)}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={statusColors[d.status] || ""}>
                           {d.status}

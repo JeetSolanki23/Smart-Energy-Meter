@@ -179,6 +179,23 @@ Background tasks:
 - `generate_monthly_bills`
 - `check_unpaid_bills`
 
+Schedule behavior:
+
+- Daily aggregation at 00:05 UTC processes the previous day.
+- Monthly bill generation on day 1 produces bills for the previous month.
+
+Manual admin triggers (for testing/ops):
+
+- `POST /api/v1/admin/jobs/aggregate-daily-usage`
+- `POST /api/v1/admin/jobs/generate-monthly-bills`
+- `POST /api/v1/admin/jobs/check-unpaid-bills`
+- `GET /api/v1/admin/jobs/{task_id}`
+
+Manual trigger behavior:
+
+- Aggregate job targets latest telemetry date (fallback: current date).
+- Generate bills job targets month of latest `daily_usage` date (fallback: current month).
+
 Monthly bill amount uses current dynamic pricing from `pricing` table.
 
 ### Payments

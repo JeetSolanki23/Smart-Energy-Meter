@@ -90,18 +90,29 @@ export async function api<T = unknown>(
     headers,
   });
 
-  // Handle token expiry
-  if (res.status === 401 || res.status === 403) {
-    const role = getRole();
-    clearAuth();
-    window.location.href = role === "admin" ? "/admin/login" : "/login";
-    throw new Error("Session expired. Please login again.");
-  }
-
+  let errorBody: unknown = null;
   if (!res.ok) {
-    const errorBody = await res
+    errorBody = await res
       .json()
       .catch(async () => ({ message: (await res.text().catch(() => "")).trim() || null }));
+
+    // Handle auth expiry/invalid token eagerly, but don't force logout on generic 403 business rules.
+    const isAuthRoute = endpoint.startsWith("/auth");
+    const hasSessionToken = Boolean(token);
+    const parsedMessage = toReadableMessage(errorBody)?.toLowerCase() || "";
+    const shouldForceLogout =
+      !isAuthRoute &&
+      hasSessionToken &&
+      (res.status === 401 ||
+        (res.status === 403 && (parsedMessage.includes("invalid") || parsedMessage.includes("expired") || parsedMessage.includes("token"))));
+
+    if (shouldForceLogout) {
+      const role = getRole();
+      clearAuth();
+      window.location.href = role === "admin" ? "/admin/login" : "/login";
+      throw new Error("Session expired. Please login again.");
+    }
+
     throw new Error(getApiErrorMessage(endpoint, res.status, errorBody));
   }
 

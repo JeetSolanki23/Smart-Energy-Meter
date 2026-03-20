@@ -1,32 +1,23 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Cpu, Activity, XCircle, AlertTriangle } from "lucide-react";
+import { Cpu, Activity, XCircle, AlertTriangle, Users } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api } from "@/lib/api";
 import DashboardLayout from "@/components/DashboardLayout";
+import {
+  AdminDeviceSummary,
+  AdminPricingResponse,
+  AdminRuntimeConfigResponse,
+  AdminUserOverview,
+} from "@/types/admin";
 import { toast } from "sonner";
 
-interface Device {
-  device_id: string;
-  location: string;
-  status: string;
-  relay_state: string;
-  tampered: boolean;
-  health_status: "GOOD" | "OFFLINE" | "TAMPERED";
-}
-
-interface PricingResponse {
-  price_per_unit: number;
-}
-
-interface RuntimeConfigResponse {
-  device_data_interval_seconds: number;
-}
-
 const AdminDashboard = () => {
-  const [devices, setDevices] = useState<Device[]>([]);
+  const [devices, setDevices] = useState<AdminDeviceSummary[]>([]);
+  const [users, setUsers] = useState<AdminUserOverview[]>([]);
   const [pricePerUnit, setPricePerUnit] = useState<number>(0);
   const [priceInput, setPriceInput] = useState<string>("");
   const [savingPrice, setSavingPrice] = useState(false);
@@ -38,18 +29,21 @@ const AdminDashboard = () => {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [deviceRows, pricing, runtimeConfig] = await Promise.all([
-          api<Device[]>("/admin/device/list"),
-          api<PricingResponse>("/admin/pricing"),
-          api<RuntimeConfigResponse>("/admin/device-interval"),
+        const [deviceRows, pricing, runtimeConfig, usersOverview] = await Promise.all([
+          api<AdminDeviceSummary[]>("/admin/device/list"),
+          api<AdminPricingResponse>("/admin/pricing"),
+          api<AdminRuntimeConfigResponse>("/admin/device-interval"),
+          api<AdminUserOverview[]>("/admin/users/overview"),
         ]);
         setDevices(deviceRows || []);
+        setUsers(usersOverview || []);
         setPricePerUnit(pricing.price_per_unit || 0);
         setPriceInput((pricing.price_per_unit || 0).toString());
         setDeviceIntervalSeconds(runtimeConfig.device_data_interval_seconds || 0);
         setIntervalInput((runtimeConfig.device_data_interval_seconds || 0).toString());
       } catch {
         setDevices([]);
+        setUsers([]);
       } finally {
         setLoading(false);
       }
@@ -67,7 +61,7 @@ const AdminDashboard = () => {
 
     setSavingPrice(true);
     try {
-      const res = await api<PricingResponse>("/admin/pricing", {
+      const res = await api<AdminPricingResponse>("/admin/pricing", {
         method: "PUT",
         body: JSON.stringify({ price_per_unit: parsed }),
       });
@@ -90,7 +84,7 @@ const AdminDashboard = () => {
 
     setSavingInterval(true);
     try {
-      const res = await api<RuntimeConfigResponse>("/admin/device-interval", {
+      const res = await api<AdminRuntimeConfigResponse>("/admin/device-interval", {
         method: "PUT",
         body: JSON.stringify({ device_data_interval_seconds: parsed }),
       });
@@ -104,21 +98,51 @@ const AdminDashboard = () => {
     }
   };
 
-  const total = devices.length;
-  const active = devices.filter((d) => d.status === "ACTIVE").length;
-  const tampered = devices.filter((d) => d.health_status === "TAMPERED").length;
-  const offline = devices.filter((d) => d.health_status === "OFFLINE").length;
+  const totalDevices = devices.length;
+  const activeDevices = devices.filter((d) => d.status === "ACTIVE").length;
+  const offlineDevices = devices.filter((d) => d.health_status === "OFFLINE").length;
+  const tamperedDevices = devices.filter((d) => d.health_status === "TAMPERED").length;
+  const totalMembers = users.length;
+  const membersWithDues = users.filter((u) => u.unpaid_bills > 0 || u.overdue_bills > 0).length;
+  const totalDueAmount = users.reduce((sum, u) => sum + (u.due_amount || 0), 0);
+
+  const topDevicePreview = useMemo(
+    () => [...devices].sort((a, b) => b.current_month_units - a.current_month_units).slice(0, 5),
+    [devices]
+  );
+
+  const dueMemberPreview = useMemo(
+    () => [...users].filter((u) => u.unpaid_bills > 0 || u.overdue_bills > 0).sort((a, b) => b.due_amount - a.due_amount).slice(0, 5),
+    [users]
+  );
 
   const stats = [
-    { title: "Total Devices", value: total, icon: Cpu, color: "text-primary" },
-    { title: "Active", value: active, icon: Activity, color: "text-energy" },
-    { title: "Offline", value: offline, icon: XCircle, color: "text-muted-foreground" },
-    { title: "Tampered", value: tampered, icon: AlertTriangle, color: "text-destructive" },
+    { title: "Total Devices", value: totalDevices, icon: Cpu, color: "text-primary" },
+    { title: "Active Devices", value: activeDevices, icon: Activity, color: "text-energy" },
+    { title: "Offline Devices", value: offlineDevices, icon: XCircle, color: "text-muted-foreground" },
+    { title: "Tampered Devices", value: tamperedDevices, icon: AlertTriangle, color: "text-destructive" },
+    { title: "Total Members", value: totalMembers, icon: Users, color: "text-primary" },
+    { title: "Members With Dues", value: membersWithDues, icon: AlertTriangle, color: "text-warning" },
+    { title: "Total Due Amount", value: `₹${totalDueAmount.toFixed(2)}`, icon: Cpu, color: "text-destructive" },
   ];
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {stats.map((stat) => (
+            <Card key={stat.title}>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">{stat.title}</CardTitle>
+                <stat.icon className={`h-5 w-5 ${stat.color}`} />
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{loading ? "..." : stat.value}</div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
         <Card>
           <CardHeader>
             <CardTitle>Unit Price Settings</CardTitle>
@@ -170,18 +194,68 @@ const AdminDashboard = () => {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {stats.map((stat) => (
-            <Card key={stat.title}>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">{stat.title}</CardTitle>
-                <stat.icon className={`h-5 w-5 ${stat.color}`} />
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{loading ? "..." : stat.value}</div>
-              </CardContent>
-            </Card>
-          ))}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Top 5 Devices (Current Month)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {topDevicePreview.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No device usage data yet.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Device</TableHead>
+                      <TableHead>Owner</TableHead>
+                      <TableHead>kWh</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {topDevicePreview.map((d) => (
+                      <TableRow key={d.device_id}>
+                        <TableCell className="font-mono text-xs">{d.device_id}</TableCell>
+                        <TableCell>{d.owner_email || "-"}</TableCell>
+                        <TableCell>{d.current_month_units.toFixed(4)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Top 5 Members By Due Amount</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {dueMemberPreview.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No outstanding dues.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Member</TableHead>
+                      <TableHead>Unpaid</TableHead>
+                      <TableHead>Overdue</TableHead>
+                      <TableHead>Due (₹)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dueMemberPreview.map((u) => (
+                      <TableRow key={u.user_id}>
+                        <TableCell className="font-medium">{u.email}</TableCell>
+                        <TableCell>{u.unpaid_bills}</TableCell>
+                        <TableCell>{u.overdue_bills}</TableCell>
+                        <TableCell>₹{u.due_amount.toFixed(2)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </DashboardLayout>

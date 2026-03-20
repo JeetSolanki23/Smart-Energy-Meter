@@ -14,6 +14,10 @@ import DeviceUsage from "./pages/DeviceUsage";
 import Usage from "./pages/Usage";
 import Bills from "./pages/Bills";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminMemberAnalytics from "./pages/AdminMemberAnalytics";
+import AdminDeviceAnalytics from "./pages/AdminDeviceAnalytics";
+import AdminAnalyticsCharts from "./pages/AdminAnalyticsCharts";
+import AdminJobs from "./pages/AdminJobs";
 import DeviceManagement from "./pages/DeviceManagement";
 import DeviceRegister from "./pages/DeviceRegister";
 import NotFound from "./pages/NotFound";
@@ -42,6 +46,10 @@ const App = () => (
 
             {/* Admin */}
             <Route path="/admin/dashboard" element={<ProtectedRoute requiredRole="admin"><AdminDashboard /></ProtectedRoute>} />
+            <Route path="/admin/analytics/charts" element={<ProtectedRoute requiredRole="admin"><AdminAnalyticsCharts /></ProtectedRoute>} />
+            <Route path="/admin/analytics/members" element={<ProtectedRoute requiredRole="admin"><AdminMemberAnalytics /></ProtectedRoute>} />
+            <Route path="/admin/analytics/devices" element={<ProtectedRoute requiredRole="admin"><AdminDeviceAnalytics /></ProtectedRoute>} />
+            <Route path="/admin/jobs" element={<ProtectedRoute requiredRole="admin"><AdminJobs /></ProtectedRoute>} />
             <Route path="/admin/devices" element={<ProtectedRoute requiredRole="admin"><DeviceManagement /></ProtectedRoute>} />
             <Route path="/admin/device/register" element={<ProtectedRoute requiredRole="admin"><DeviceRegister /></ProtectedRoute>} />
 

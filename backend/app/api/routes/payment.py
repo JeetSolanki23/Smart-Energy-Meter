@@ -34,7 +34,13 @@ def finalize_payment(
     db: Session = Depends(get_db_session),
 ) -> dict:
     """Synchronous payment finalization - use this instead of webhook for prototype"""
-    result = payment_service.finalize_payment(db, payload.order_id, payload.payment_id)
+    result = payment_service.finalize_payment(
+        db,
+        current_user_id=current_user.id,
+        razorpay_order_id=payload.order_id,
+        razorpay_payment_id=payload.payment_id,
+        razorpay_signature=payload.signature,
+    )
     return result
 
 

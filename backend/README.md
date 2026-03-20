@@ -28,6 +28,22 @@ In a second terminal:
 celery -A app.workers.celery_app.celery_app worker -l info
 ```
 
+Windows note:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+celery -A app.workers.celery_app.celery_app worker -P solo --concurrency=1 -l info
+```
+
+Use `-P solo` on Windows to avoid `billiard` spawn errors like `WinError 5/6`.
+
+In a third terminal (scheduler):
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+celery -A app.workers.celery_app.celery_app beat -l info
+```
+
 ## API docs
 
 - Swagger: `http://localhost:8000/docs`

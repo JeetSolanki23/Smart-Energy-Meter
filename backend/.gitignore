@@ -11,3 +11,6 @@ htmlcov/
 .env
 *.env.local
 alembic/versions/*.pyc
+
+# Celery beat runtime schedule files
+celerybeat-schedule*

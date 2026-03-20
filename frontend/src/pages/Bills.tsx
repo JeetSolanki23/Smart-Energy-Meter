@@ -22,6 +22,38 @@ const statusColors: Record<string, string> = {
   OVERDUE: "bg-destructive/20 text-destructive border-destructive/30",
 };
 
+const RAZORPAY_SCRIPT_URL = "https://checkout.razorpay.com/v1/checkout.js";
+
+const ensureRazorpayLoaded = async (): Promise<boolean> => {
+  const win = window as { Razorpay?: new (opts: unknown) => { open: () => void } };
+  if (win.Razorpay) {
+    return true;
+  }
+
+  const existingScript = document.querySelector<HTMLScriptElement>(`script[src="${RAZORPAY_SCRIPT_URL}"]`);
+  if (existingScript) {
+    await new Promise<void>((resolve) => {
+      existingScript.addEventListener("load", () => resolve(), { once: true });
+      existingScript.addEventListener("error", () => resolve(), { once: true });
+      window.setTimeout(() => resolve(), 3000);
+    });
+    return Boolean((window as { Razorpay?: unknown }).Razorpay);
+  }
+
+  const script = document.createElement("script");
+  script.src = RAZORPAY_SCRIPT_URL;
+  script.async = true;
+  document.body.appendChild(script);
+
+  await new Promise<void>((resolve) => {
+    script.onload = () => resolve();
+    script.onerror = () => resolve();
+    window.setTimeout(() => resolve(), 5000);
+  });
+
+  return Boolean((window as { Razorpay?: unknown }).Razorpay);
+};
+
 const Bills = () => {
   const [bills, setBills] = useState<Bill[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,6 +77,12 @@ const Bills = () => {
   const handlePay = async (bill: Bill) => {
     setPayingId(bill.bill_id);
     try {
+      const sdkLoaded = await ensureRazorpayLoaded();
+      if (!sdkLoaded) {
+        toast.error("Unable to load Razorpay SDK. Check internet/CSP and try again.");
+        return;
+      }
+
       const order = await api<{
         order_id: string;
         amount_paise: number;
@@ -63,7 +101,7 @@ const Bills = () => {
         order_id: order.order_id,
         name: "Smart Energy Meter",
         description: `Electricity Bill Payment - ${formatMonth(bill.month)}`,
-        handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string }) => {
+        handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
           try {
             // Finalize payment synchronously (no webhook for prototype)
             await api("/payment/finalize", {
@@ -71,6 +109,7 @@ const Bills = () => {
               body: JSON.stringify({
                 order_id: response.razorpay_order_id,
                 payment_id: response.razorpay_payment_id,
+                signature: response.razorpay_signature,
               }),
             });
 

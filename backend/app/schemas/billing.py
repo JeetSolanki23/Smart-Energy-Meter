@@ -20,6 +20,7 @@ class PaymentCreateRequest(BaseModel):
 class PaymentFinalizeRequest(BaseModel):
     order_id: str
     payment_id: str
+    signature: str
 
 
 class RazorpayOrderResponse(BaseModel):

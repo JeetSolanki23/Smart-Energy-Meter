@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, UTC
+from collections import defaultdict
 
 from app.core.deps import get_current_user, get_db_session
 from app.models.bill import Bill
@@ -25,16 +26,23 @@ def get_pricing(current_user: User = Depends(get_current_user), db: Session = De
 
 @router.get("/usage")
 def get_usage(current_user: User = Depends(get_current_user), db: Session = Depends(get_db_session)) -> dict:
-    """Get current month usage across all user's devices from raw readings."""
+    """Get current month usage across all user's devices from cumulative meter deltas."""
     now = datetime.now(UTC)
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-    total_units = (
-        db.query(func.coalesce(func.sum(EnergyReading.energy), 0.0))
+    rows = (
+        db.query(
+            EnergyReading.device_id,
+            func.min(EnergyReading.energy).label("min_energy"),
+            func.max(EnergyReading.energy).label("max_energy"),
+        )
         .join(Device, Device.id == EnergyReading.device_id)
         .filter(Device.user_id == current_user.id, EnergyReading.timestamp >= month_start)
-        .scalar()
+        .group_by(EnergyReading.device_id)
+        .all()
     )
+
+    total_units = sum(max(float(r.max_energy or 0.0) - float(r.min_energy or 0.0), 0.0) for r in rows)
     return {"total_units": float(total_units or 0.0)}
 
 
@@ -73,26 +81,36 @@ def get_hourly_usage(
     db: Session = Depends(get_db_session),
     hours: int = Query(default=24, ge=1, le=168),
 ) -> list[dict]:
-    """Get hourly usage buckets for recent history (default 24h)."""
+    """Get hourly usage buckets for recent history (default 24h) using cumulative deltas."""
     since = datetime.now(UTC) - timedelta(hours=hours)
     hour_bucket = func.date_trunc("hour", EnergyReading.timestamp)
 
     rows = (
-        db.query(hour_bucket.label("bucket"), func.coalesce(func.sum(EnergyReading.energy), 0.0).label("units"))
+        db.query(
+            hour_bucket.label("bucket"),
+            EnergyReading.device_id.label("device_id"),
+            func.min(EnergyReading.energy).label("min_energy"),
+            func.max(EnergyReading.energy).label("max_energy"),
+        )
         .join(Device, Device.id == EnergyReading.device_id)
         .filter(Device.user_id == current_user.id, EnergyReading.timestamp >= since)
-        .group_by(hour_bucket)
-        .order_by(hour_bucket)
+        .group_by(hour_bucket, EnergyReading.device_id)
+        .order_by(hour_bucket, EnergyReading.device_id)
         .all()
     )
 
+    bucket_totals: dict[datetime, float] = defaultdict(float)
+    for row in rows:
+        delta = max(float(row.max_energy or 0.0) - float(row.min_energy or 0.0), 0.0)
+        bucket_totals[row.bucket] += delta
+
     result = []
-    for bucket_dt, units in rows:
+    for bucket_dt in sorted(bucket_totals):
         result.append(
             {
                 "hour": bucket_dt.strftime("%H:%M"),
                 "timestamp": bucket_dt.isoformat(),
-                "units": float(units or 0.0),
+                "units": float(bucket_totals[bucket_dt] or 0.0),
             }
         )
 
