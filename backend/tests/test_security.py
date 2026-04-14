@@ -20,3 +20,13 @@ def test_jwt_create_and_decode() -> None:
 
     assert payload["sub"] == "abc-user"
     assert payload["role"] == "user"
+
+
+def test_decode_access_token_rejects_invalid_token() -> None:
+    invalid_token = "not-a-real-jwt"
+
+    try:
+        decode_access_token(invalid_token)
+        assert False, "Expected ValueError for invalid token"
+    except ValueError as exc:
+        assert "Invalid token" in str(exc)
