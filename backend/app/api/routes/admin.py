@@ -19,9 +19,11 @@ from app.schemas.device import (
     AdminRegisterDeviceRequest,
     AdminRelayRequest,
 )
+from app.models.admin import Admin
 from app.services.pricing_service import get_current_price, set_current_price
 from app.services.runtime_config_service import get_device_data_interval_seconds, set_device_data_interval_seconds
 from app.services.device_service import consume_pair_code, generate_device_identity
+from app.services.email_service import send_test_notification
 from app.workers.celery_app import celery_app
 from app.workers.tasks import (
     aggregate_daily_usage_task,
@@ -30,6 +32,17 @@ from app.workers.tasks import (
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+@router.post("/notifications/test-email")
+def trigger_test_email(current_admin: Admin = Depends(get_current_admin)) -> dict:
+    result = send_test_notification(current_admin.email)
+    return {
+        "ok": True,
+        "sent": result.get("sent", False),
+        "recipients": result.get("recipients", []),
+        "reason": result.get("reason"),
+    }
 
 
 @router.get("/pricing", response_model=PricingResponse)

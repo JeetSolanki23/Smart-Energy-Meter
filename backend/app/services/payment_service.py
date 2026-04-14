@@ -12,6 +12,7 @@ from app.core.config import get_settings
 from app.models.bill import Bill
 from app.models.enums import BillStatus, PaymentStatus
 from app.models.payment import Payment
+from app.services.email_service import send_payment_success_notification
 
 settings = get_settings()
 
@@ -131,6 +132,7 @@ class PaymentService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Bill not found")
 
         db.commit()
+        send_payment_success_notification(db, bill)
         return {"status": "success", "bill_status": "PAID"}
 
     def verify_webhook_signature(self, body: bytes, signature: str) -> bool:
@@ -151,6 +153,8 @@ class PaymentService:
         if not payment:
             return
 
+        was_success = payment.status == PaymentStatus.SUCCESS
+
         payment.razorpay_payment_id = razorpay_payment_id
         payment.status = PaymentStatus.SUCCESS
         payment.paid_at = datetime.now(UTC)
@@ -160,3 +164,6 @@ class PaymentService:
             bill.status = BillStatus.PAID
 
         db.commit()
+
+        if bill and not was_success:
+            send_payment_success_notification(db, bill)

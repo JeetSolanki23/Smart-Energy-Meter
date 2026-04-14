@@ -45,6 +45,19 @@ interface PricingResponse {
   price_per_unit: number;
 }
 
+const DASHBOARD_CHART_MODE_KEY = "dashboard-chart-mode";
+
+const getSavedDashboardChartMode = (): "daily" | "hourly" | "live" => {
+  if (typeof window === "undefined") {
+    return "daily";
+  }
+  const saved = window.localStorage.getItem(DASHBOARD_CHART_MODE_KEY);
+  if (saved === "daily" || saved === "hourly" || saved === "live") {
+    return saved;
+  }
+  return "daily";
+};
+
 const Dashboard = () => {
   const [totalUnits, setTotalUnits] = useState<number>(0);
   const [dailyChartData, setDailyChartData] = useState<DailyChartData[]>([]);
@@ -52,7 +65,7 @@ const Dashboard = () => {
   const [liveChartData, setLiveChartData] = useState<LiveSeriesPoint[]>([]);
   const [livePower, setLivePower] = useState<number>(0);
   const [liveLastReadingAt, setLiveLastReadingAt] = useState<string | null>(null);
-  const [chartMode, setChartMode] = useState<"daily" | "hourly" | "live">("daily");
+  const [chartMode, setChartMode] = useState<"daily" | "hourly" | "live">(getSavedDashboardChartMode);
   const [devices, setDevices] = useState<Device[]>([]);
   const [pricePerUnit, setPricePerUnit] = useState<number>(0);
   const [loading, setLoading] = useState(true);
@@ -64,7 +77,7 @@ const Dashboard = () => {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      const [usage, dailyData, hourlyData, liveData, devicesData, pricing] = await Promise.all([
+      const [usageRes, dailyRes, hourlyRes, liveRes, devicesRes, pricingRes] = await Promise.allSettled([
         api<{ total_units: number }>("/user/usage"),
         api<DailyChartData[]>("/user/usage/daily"),
         api<HourlyChartData[]>("/user/usage/hourly?hours=24"),
@@ -73,14 +86,27 @@ const Dashboard = () => {
         api<PricingResponse>("/user/pricing"),
       ]);
 
-      setTotalUnits(usage.total_units);
-      setDailyChartData(dailyData || []);
-      setHourlyChartData(hourlyData || []);
-      setLiveChartData(liveData?.series || []);
-      setLivePower(liveData?.current_power || 0);
-      setLiveLastReadingAt(liveData?.last_reading_at || null);
-      setDevices(devicesData || []);
-      setPricePerUnit(pricing.price_per_unit || 0);
+      if (usageRes.status === "fulfilled") {
+        setTotalUnits(usageRes.value?.total_units || 0);
+      } else {
+        setTotalUnits(0);
+      }
+
+      setDailyChartData(dailyRes.status === "fulfilled" ? (dailyRes.value || []) : []);
+      setHourlyChartData(hourlyRes.status === "fulfilled" ? (hourlyRes.value || []) : []);
+
+      if (liveRes.status === "fulfilled") {
+        setLiveChartData(liveRes.value?.series || []);
+        setLivePower(liveRes.value?.current_power || 0);
+        setLiveLastReadingAt(liveRes.value?.last_reading_at || null);
+      } else {
+        setLiveChartData([]);
+        setLivePower(0);
+        setLiveLastReadingAt(null);
+      }
+
+      setDevices(devicesRes.status === "fulfilled" ? (devicesRes.value || []) : []);
+      setPricePerUnit(pricingRes.status === "fulfilled" ? (pricingRes.value?.price_per_unit || 0) : 0);
     } catch (err: unknown) {
       console.error(err instanceof Error ? err.message : "Failed to load dashboard data");
     } finally {
@@ -110,6 +136,10 @@ const Dashboard = () => {
     }, 15000);
 
     return () => window.clearInterval(timer);
+  }, [chartMode]);
+
+  useEffect(() => {
+    window.localStorage.setItem(DASHBOARD_CHART_MODE_KEY, chartMode);
   }, [chartMode]);
 
   const selectedChartData = chartMode === "daily" ? dailyChartData : chartMode === "hourly" ? hourlyChartData : liveChartData;
@@ -188,26 +218,43 @@ const Dashboard = () => {
             ) : (
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={selectedChartData}>
-                    <defs>
-                      <linearGradient id="colorUnits" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={lineColor} stopOpacity={0.3} />
-                        <stop offset="95%" stopColor={lineColor} stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey={xAxisKey} className="text-muted-foreground" tick={{ fontSize: 12 }} />
-                    <YAxis className="text-muted-foreground" tick={{ fontSize: 12 }} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "8px",
-                        color: "hsl(var(--foreground))",
-                      }}
-                    />
-                    <Area type="monotone" dataKey={yAxisKey} stroke={lineColor} fillOpacity={1} fill="url(#colorUnits)" strokeWidth={2} />
-                  </AreaChart>
+                  {chartMode === "daily" ? (
+                    <BarChart data={selectedChartData}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                      <XAxis dataKey={xAxisKey} className="text-muted-foreground" tick={{ fontSize: 12 }} />
+                      <YAxis className="text-muted-foreground" tick={{ fontSize: 12 }} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "8px",
+                          color: "hsl(var(--foreground))",
+                        }}
+                      />
+                      <Bar dataKey="units" fill="hsl(217 91% 60%)" radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                  ) : (
+                    <AreaChart data={selectedChartData}>
+                      <defs>
+                        <linearGradient id="colorUnits" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={lineColor} stopOpacity={0.3} />
+                          <stop offset="95%" stopColor={lineColor} stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                      <XAxis dataKey={xAxisKey} className="text-muted-foreground" tick={{ fontSize: 12 }} />
+                      <YAxis className="text-muted-foreground" tick={{ fontSize: 12 }} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "8px",
+                          color: "hsl(var(--foreground))",
+                        }}
+                      />
+                      <Area type="monotone" dataKey={yAxisKey} stroke={lineColor} fillOpacity={1} fill="url(#colorUnits)" strokeWidth={2} />
+                    </AreaChart>
+                  )}
                 </ResponsiveContainer>
               </div>
             )}

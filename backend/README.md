@@ -60,3 +60,31 @@ celery -A app.workers.celery_app.celery_app beat -l info
 .\.venv\Scripts\Activate.ps1
 pytest -q
 ```
+
+## Email Notifications (Gmail)
+
+The backend supports branded HTML email notifications for:
+
+1. Tamper detection
+2. New bill generation
+3. Payment success
+
+Update `.env` with SMTP values (see `.env.example`):
+
+```powershell
+SMTP_ENABLED=true
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=your_gmail_address@gmail.com
+SMTP_PASSWORD=your_gmail_app_password
+SMTP_FROM_EMAIL=your_gmail_address@gmail.com
+SMTP_FROM_NAME=Smart Energy Meter
+SMTP_USE_TLS=true
+SMTP_USE_SSL=false
+ALERT_EMAIL_TO=admin1@example.com,admin2@example.com
+```
+
+Notes:
+
+1. Gmail requires an App Password (2FA enabled), not your normal account password.
+2. Recipients include owner + `ALERT_EMAIL_TO` list for tamper, bill-generated, and payment-success notifications.

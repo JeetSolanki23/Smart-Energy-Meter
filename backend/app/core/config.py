@@ -35,11 +35,29 @@ class Settings(BaseSettings):
     PRICE_PER_UNIT: float = 7.0
     MIN_PAYMENT_AMOUNT: float = 1.0
 
+    SMTP_ENABLED: bool = False
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = ""
+    SMTP_FROM_NAME: str = "Smart Energy Meter"
+    SMTP_USE_TLS: bool = True
+    SMTP_USE_SSL: bool = False
+    SMTP_TIMEOUT_SECONDS: int = 20
+    ALERT_EMAIL_TO: str = ""
+
     @property
     def cors_allowed_origins(self) -> list[str]:
         if not self.CORS_ALLOWED_ORIGINS.strip():
             return []
         return [origin.strip() for origin in self.CORS_ALLOWED_ORIGINS.split(",") if origin.strip()]
+
+    @property
+    def alert_email_recipients(self) -> list[str]:
+        if not self.ALERT_EMAIL_TO.strip():
+            return []
+        return [email.strip() for email in self.ALERT_EMAIL_TO.split(",") if email.strip()]
 
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> str:  # noqa: N802

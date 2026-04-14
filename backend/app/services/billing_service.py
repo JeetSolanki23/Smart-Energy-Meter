@@ -10,6 +10,7 @@ from app.models.daily_usage import DailyUsage
 from app.models.device import Device
 from app.models.energy_reading import EnergyReading
 from app.models.enums import BillStatus
+from app.services.email_service import send_bill_generated_notification
 from app.services.pricing_service import get_current_price
 
 settings = get_settings()
@@ -71,6 +72,7 @@ def generate_monthly_bills(db: Session, month_start: date | None = None) -> int:
     )
 
     count = 0
+    created_bills: list[Bill] = []
     current_price_per_unit = get_current_price(db)
     due_date = next_month + timedelta(days=14)
     for user_id, units in rows:
@@ -92,9 +94,14 @@ def generate_monthly_bills(db: Session, month_start: date | None = None) -> int:
             status=BillStatus.UNPAID,
         )
         db.add(bill)
+        created_bills.append(bill)
         count += 1
 
     db.commit()
+
+    for bill in created_bills:
+        send_bill_generated_notification(db, bill)
+
     return count
 
 

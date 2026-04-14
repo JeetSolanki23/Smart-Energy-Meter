@@ -41,6 +41,19 @@ interface PricingResponse {
   price_per_unit: number;
 }
 
+const USAGE_CHART_MODE_KEY = "usage-chart-mode";
+
+const getSavedUsageChartMode = (): "daily" | "hourly" | "live" => {
+  if (typeof window === "undefined") {
+    return "daily";
+  }
+  const saved = window.localStorage.getItem(USAGE_CHART_MODE_KEY);
+  if (saved === "daily" || saved === "hourly" || saved === "live") {
+    return saved;
+  }
+  return "daily";
+};
+
 const Usage = () => {
   const [totalUnits, setTotalUnits] = useState<number>(0);
   const [dailyData, setDailyData] = useState<DailyUsagePoint[]>([]);
@@ -48,7 +61,7 @@ const Usage = () => {
   const [liveData, setLiveData] = useState<LiveUsagePoint[]>([]);
   const [livePower, setLivePower] = useState<number>(0);
   const [liveLastReadingAt, setLiveLastReadingAt] = useState<string | null>(null);
-  const [chartMode, setChartMode] = useState<"daily" | "hourly" | "live">("daily");
+  const [chartMode, setChartMode] = useState<"daily" | "hourly" | "live">(getSavedUsageChartMode);
   const [monthlyData, setMonthlyData] = useState<Array<{ month: string; units: number }>>([]);
   const [pricePerUnit, setPricePerUnit] = useState<number>(0);
   const [loading, setLoading] = useState(true);
@@ -56,7 +69,7 @@ const Usage = () => {
   useEffect(() => {
     const loadUsage = async () => {
       try {
-        const [total, daily, hourly, live, bills, pricing] = await Promise.all([
+        const [totalRes, dailyRes, hourlyRes, liveRes, billsRes, pricingRes] = await Promise.allSettled([
           api<{ total_units: number }>("/user/usage"),
           api<DailyUsagePoint[]>("/user/usage/daily"),
           api<HourlyUsagePoint[]>("/user/usage/hourly?hours=24"),
@@ -65,13 +78,20 @@ const Usage = () => {
           api<PricingResponse>("/user/pricing"),
         ]);
 
-        setTotalUnits(total.total_units);
+        const total = totalRes.status === "fulfilled" ? totalRes.value : null;
+        const daily = dailyRes.status === "fulfilled" ? dailyRes.value : [];
+        const hourly = hourlyRes.status === "fulfilled" ? hourlyRes.value : [];
+        const live = liveRes.status === "fulfilled" ? liveRes.value : null;
+        const bills = billsRes.status === "fulfilled" ? billsRes.value : [];
+        const pricing = pricingRes.status === "fulfilled" ? pricingRes.value : null;
+
+        setTotalUnits(total?.total_units || 0);
         setDailyData(daily ?? []);
         setHourlyData(hourly ?? []);
         setLiveData(live?.series ?? []);
         setLivePower(live?.current_power || 0);
         setLiveLastReadingAt(live?.last_reading_at || null);
-        setPricePerUnit(pricing.price_per_unit || 0);
+        setPricePerUnit(pricing?.price_per_unit || 0);
 
         const monthly = (bills ?? [])
           .slice()
@@ -125,6 +145,10 @@ const Usage = () => {
     return () => window.clearInterval(timer);
   }, [chartMode]);
 
+  useEffect(() => {
+    window.localStorage.setItem(USAGE_CHART_MODE_KEY, chartMode);
+  }, [chartMode]);
+
   const selectedChartData = chartMode === "daily" ? dailyData : chartMode === "hourly" ? hourlyData : liveData;
   const xAxisKey = chartMode === "daily" ? "day" : chartMode === "hourly" ? "hour" : "time";
   const yAxisKey = chartMode === "live" ? "power" : "units";
@@ -163,21 +187,39 @@ const Usage = () => {
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={selectedChartData}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey={xAxisKey} tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip
-                      formatter={(value: number) => [`${value.toFixed(2)} ${yLabel}`, chartMode === "live" ? "Power" : "Usage"]}
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "8px",
-                        color: "hsl(var(--foreground))",
-                      }}
-                    />
-                    <Line type="monotone" dataKey={yAxisKey} stroke={lineColor} strokeWidth={2} dot={false} />
-                  </LineChart>
+                  {chartMode === "daily" ? (
+                    <BarChart data={selectedChartData}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                      <XAxis dataKey={xAxisKey} tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} />
+                      <Tooltip
+                        formatter={(value: number) => [`${value.toFixed(2)} ${yLabel}`, "Usage"]}
+                        contentStyle={{
+                          backgroundColor: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "8px",
+                          color: "hsl(var(--foreground))",
+                        }}
+                      />
+                      <Bar dataKey="units" fill="hsl(217 91% 60%)" radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                  ) : (
+                    <LineChart data={selectedChartData}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                      <XAxis dataKey={xAxisKey} tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} />
+                      <Tooltip
+                        formatter={(value: number) => [`${value.toFixed(2)} ${yLabel}`, chartMode === "live" ? "Power" : "Usage"]}
+                        contentStyle={{
+                          backgroundColor: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: "8px",
+                          color: "hsl(var(--foreground))",
+                        }}
+                      />
+                      <Line type="monotone" dataKey={yAxisKey} stroke={lineColor} strokeWidth={2} dot={false} />
+                    </LineChart>
+                  )}
                 </ResponsiveContainer>
               )}
             </div>

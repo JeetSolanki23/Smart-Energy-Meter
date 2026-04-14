@@ -35,6 +35,13 @@ interface JobRun {
   createdAt: string;
 }
 
+interface TestEmailResponse {
+  ok: boolean;
+  sent: boolean;
+  recipients: string[];
+  reason?: string;
+}
+
 const JOBS: Array<{ id: JobKind; title: string; description: string; triggerPath: string }> = [
   {
     id: "aggregate-daily-usage",
@@ -66,6 +73,7 @@ const statusTone = (status: string): "default" | "secondary" | "destructive" | "
 
 const AdminJobs = () => {
   const [loadingJob, setLoadingJob] = useState<JobKind | null>(null);
+  const [sendingTestEmail, setSendingTestEmail] = useState(false);
   const [refreshingTaskId, setRefreshingTaskId] = useState<string | null>(null);
   const [runs, setRuns] = useState<JobRun[]>([]);
 
@@ -123,6 +131,22 @@ const AdminJobs = () => {
     }
   };
 
+  const sendTestEmail = async () => {
+    setSendingTestEmail(true);
+    try {
+      const res = await api<TestEmailResponse>("/admin/notifications/test-email", { method: "POST" });
+      if (res.sent) {
+        toast.success(`Test email sent to: ${res.recipients.join(", ")}`);
+      } else {
+        toast.error(res.reason || "Test email was not sent");
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to send test email");
+    } finally {
+      setSendingTestEmail(false);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -163,6 +187,28 @@ const AdminJobs = () => {
                 </CardContent>
               </Card>
             ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Email Notifications</CardTitle>
+            <CardDescription>Send a branded test email to verify SMTP configuration.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => void sendTestEmail()} disabled={sendingTestEmail}>
+              {sendingTestEmail ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <PlayCircle className="h-4 w-4" />
+                  Send Test Email
+                </>
+              )}
+            </Button>
           </CardContent>
         </Card>
 

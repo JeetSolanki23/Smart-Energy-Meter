@@ -19,7 +19,7 @@
 // Tamper switch: GPIO 19 (INPUT_PULLUP, HIGH = tamper/open)
 
 // -------- User Config --------
-const char* API_BASE_URL_DEFAULT = "http://192.168.1.100:8000/api/v1";
+const char* API_BASE_URL_DEFAULT = "http://192.168.137.1:8000/api/v1";
 const uint32_t DEFAULT_REPORT_INTERVAL_MS = 20000;
 const uint32_t LIVE_REFRESH_INTERVAL_MS = 1000;
 const uint16_t HTTP_TIMEOUT_MS = 8000;
@@ -40,6 +40,7 @@ const int RELAY_PIN = 18;
 const int TAMPER_PIN = 19;
 const int BOOT_BUTTON_PIN = 0;
 const uint32_t FACTORY_RESET_HOLD_MS = 5000;
+const uint8_t RELAY_ACTIVE_LEVEL = LOW;
 
 // -------- OLED Config --------
 const int SCREEN_WIDTH = 128;
@@ -79,6 +80,7 @@ float liveVoltage = 0.0f;
 float liveCurrent = 0.0f;
 float livePower = 0.0f;
 bool liveTamper = false;
+bool previousTamper = false;
 String liveTimestamp = "1970-01-01T00:00:00Z";
 
 // Small RAM buffer for offline readings
@@ -238,7 +240,8 @@ void loadCredentials() {
 
 void setRelay(bool on) {
   relayOn = on;
-  digitalWrite(RELAY_PIN, on ? HIGH : LOW);
+  uint8_t relayPinLevel = on ? RELAY_ACTIVE_LEVEL : (RELAY_ACTIVE_LEVEL == HIGH ? LOW : HIGH);
+  digitalWrite(RELAY_PIN, relayPinLevel);
 }
 
 bool isTamperDetected() {
@@ -560,6 +563,12 @@ void pollRelayCommand() {
 
   String relayCmd = String((const char*)res["relay"]);
   relayCmd.toUpperCase();
+  if (liveTamper && relayCmd == "ON") {
+    // Keep relay OFF while tamper is active.
+    setRelay(false);
+    return;
+  }
+
   if (relayCmd == "ON") {
     setRelay(true);
   } else if (relayCmd == "OFF") {
@@ -579,6 +588,40 @@ void showActiveDisplay(float voltage, float current, float power, float energy, 
     "Units:" + String(energy / 1000.0f, 4),
     relayOn ? "Relay: ON" : "Relay: OFF"
   );
+}
+
+void handleTamperState(bool tamper) {
+  if (tamper) {
+    // Safety first: cut power immediately whenever tamper is detected.
+    if (relayOn) {
+      setRelay(false);
+    }
+
+    // Push tamper event immediately once when tamper transitions to active.
+    if (!previousTamper && paired) {
+      Reading tamperReading = {
+        liveVoltage,
+        liveCurrent,
+        livePower,
+        totalEnergyWh,
+        true,
+        liveTimestamp
+      };
+
+      if (!sendReading(tamperReading, false)) {
+        addBufferedReading(
+          tamperReading.voltage,
+          tamperReading.current,
+          tamperReading.power,
+          tamperReading.energy,
+          tamperReading.tamper,
+          tamperReading.timestamp
+        );
+      }
+    }
+  }
+
+  previousTamper = tamper;
 }
 
 void sampleSensorsAndUpdateDisplay() {
@@ -601,6 +644,8 @@ void sampleSensorsAndUpdateDisplay() {
   liveTimestamp = nowIso8601();
   hasLiveSample = true;
   lastSampleMs = now;
+
+  handleTamperState(liveTamper);
 
   showActiveDisplay(liveVoltage, liveCurrent, livePower, totalEnergyWh, liveTamper);
 }
@@ -635,13 +680,15 @@ void setup() {
   pinMode(RELAY_PIN, OUTPUT);
   pinMode(TAMPER_PIN, INPUT_PULLUP);
   pinMode(BOOT_BUTTON_PIN, INPUT_PULLUP);
-  setRelay(true);
+  // Fail-safe startup: keep load disconnected until backend command is fetched.
+  setRelay(false);
 
   Wire.begin(21, 22);
 
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
     // Continue without display.
   } else {
+    display.setRotation(2);
     showLines("Smart Energy Meter", "Initializing...");
   }
 
@@ -665,6 +712,9 @@ void setup() {
   if (!paired) {
     runPairingMode();
   }
+
+  // Initial command sync after pairing/boot so backend decides relay state.
+  pollRelayCommand();
 
   lastLoopMs = millis();
   lastDisplayMs = lastLoopMs;
